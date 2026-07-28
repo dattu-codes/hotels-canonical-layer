@@ -3,6 +3,7 @@ from app.pipeline.ingestion import DataLoader
 from app.pipeline.blocking import CandidateGenerator
 from app.pipeline.hotel_matcher import HotelMatcher
 
+import json
 
 loader = DataLoader()
 
@@ -13,14 +14,14 @@ generator = CandidateGenerator(radius_km=1)
 matcher = HotelMatcher()
 merger = CanonicalMerger()
 
-
 canonical_hotels = []
+
+# Track Supplier B hotels that have already been matched
+used_b_ids = set()
 
 for _, hotel_a in supplier_a.iterrows():
 
     print(f"Processing: {hotel_a['name']}")
-    print(f"\nTesting Hotel: {hotel_a['name']}")
-    print("=" * 80)
 
     candidates = generator.get_candidates(hotel_a, supplier_b)
 
@@ -31,6 +32,11 @@ for _, hotel_a in supplier_a.iterrows():
     for candidate in candidates:
 
         hotel_b = candidate["hotel"]
+
+        # Skip if this Supplier B hotel is already matched
+        if hotel_b["id"] in used_b_ids:
+            continue
+
         distance = candidate["distance"]
 
         result = matcher.calculate_confidence(
@@ -47,19 +53,22 @@ for _, hotel_a in supplier_a.iterrows():
     if best_candidate is None:
         continue
 
+    # Skip weak matches
+    if best_result["confidence"] < 55:
+        continue
+
     canonical = merger.merge(
         hotel_a,
         best_candidate["hotel"],
         best_result["confidence"]
     )
 
-    
     canonical_hotels.append(canonical)
-    
+
+    used_b_ids.add(best_candidate["hotel"]["id"])
+
 print("\nProcessing Complete!")
 print(f"Total Canonical Hotels: {len(canonical_hotels)}")
-
-import json
 
 with open("output/canonical_hotels.json", "w", encoding="utf-8") as f:
     json.dump(canonical_hotels, f, indent=4, default=str)
