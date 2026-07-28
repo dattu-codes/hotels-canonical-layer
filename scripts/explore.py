@@ -58,3 +58,15 @@ print(rooms_b.head())
 
 print("\nMissing Values:")
 print(rooms_b.isnull().sum())
+print("\n" + "=" * 60)
+print("SAMPLE HOTELS - SUPPLIER A")
+print("=" * 60)
+
+print(supplier_a[["id","name", "address"]].head(20))
+
+
+print("\n" + "=" * 60)
+print("SAMPLE HOTELS - SUPPLIER B")
+print("=" * 60)
+
+print(supplier_b[["id","name", "address"]].head(20))
