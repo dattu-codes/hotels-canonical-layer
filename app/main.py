@@ -67,13 +67,21 @@ def get_hotel(canonical_id: str):
 
         if hotel["canonical_id"] == canonical_id:
             
-            supplier_a_record = supplier_a[
-                supplier_a["id"] == hotel["supplier_a_id"]
-            ].iloc[0].to_dict()
+            supplier_a_record = None
+            if hotel["supplier_a_id"] is not None:
+                a_match = supplier_a[
+                    supplier_a["id"] == hotel["supplier_a_id"]
+                ]
+                if not a_match.empty:
+                    supplier_a_record = a_match.iloc[0].to_dict()
 
-            supplier_b_record = supplier_b[
-                supplier_b["id"] == hotel["supplier_b_id"]
-            ].iloc[0].to_dict()
+            supplier_b_record = None
+            if hotel["supplier_b_id"] is not None:
+                b_match = supplier_b[
+                    supplier_b["id"] == hotel["supplier_b_id"]
+                ]
+                if not b_match.empty:
+                    supplier_b_record = b_match.iloc[0].to_dict()
             
             hotel_rooms_a = rooms_a[
                 rooms_a["hotel_id"] == hotel["supplier_a_id"]
