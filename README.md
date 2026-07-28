@@ -2,30 +2,20 @@
 
 ## Overview
 
-This project merges duplicate hotel records from two suppliers into a single canonical hotel layer. It exposes the merged data through a FastAPI service with confidence scores, source provenance, and matched room information.
+This project implements a canonical hotel layer by resolving duplicate hotel records from two independent suppliers into a single unified dataset.
 
-## Features
+The system performs:
 
-- Hotel matching using candidate generation and fuzzy matching
-- Canonical hotel records with supplier references
-- Room matching with confidence scores
-- Near-miss room candidates
-- REST API built with FastAPI
-- Docker and Docker Compose support
+- Hotel entity resolution
+- Canonical hotel generation
+- Room matching and normalization
+- REST API for querying canonical hotels
 
----
-
-## Tech Stack
-
-- Python 3.13
-- FastAPI
-- Pandas
-- RapidFuzz
-- Docker
+The API is implemented using FastAPI and can be started using Docker with a single command.
 
 ---
 
-## Project Structure
+# Project Structure
 
 ```
 app/
@@ -34,6 +24,7 @@ docs/
 output/
 scripts/
 tests/
+
 Dockerfile
 docker-compose.yml
 requirements.txt
@@ -43,21 +34,33 @@ WRITEUP.md
 
 ---
 
-## Run with Docker
+# Requirements
 
-Build and start the application:
+- Docker Desktop
+
+OR
+
+- Python 3.13+
+
+---
+
+# Running the Project
+
+## Option 1 (Recommended)
+
+Build and start the API:
 
 ```bash
 docker compose up --build
 ```
 
-The API will be available at:
+API:
 
 ```
 http://localhost:8000
 ```
 
-Swagger UI:
+Swagger:
 
 ```
 http://localhost:8000/docs
@@ -65,15 +68,15 @@ http://localhost:8000/docs
 
 ---
 
-## Run without Docker
+## Option 2 (Without Docker)
 
-Install the dependencies:
+Install dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Start the API:
+Run the API:
 
 ```bash
 uvicorn app.main:app --reload
@@ -81,9 +84,26 @@ uvicorn app.main:app --reload
 
 ---
 
-## API Endpoints
+# Canonical Output
 
-### List Hotels
+The generated canonical dataset is located at:
+
+```
+output/canonical_hotels.json
+```
+
+The dataset contains:
+
+- canonical_id
+- merged hotel information
+- supplier references
+- confidence score
+
+---
+
+# API Endpoints
+
+## 1. Search Hotels
 
 ```
 GET /hotels
@@ -95,15 +115,18 @@ Example:
 GET /hotels?search=fortune
 ```
 
-Supported query parameters:
+Optional query parameters:
 
-- search
-- limit
-- offset
+| Parameter | Description |
+|-----------|-------------|
+| search | Hotel name search |
+| min_confidence | Minimum confidence score |
+| limit | Pagination limit |
+| offset | Pagination offset |
 
 ---
 
-### Hotel Details
+## 2. Hotel Details
 
 ```
 GET /hotels/{canonical_id}
@@ -122,40 +145,61 @@ Returns:
 - Supplier B record
 - Matched rooms
 - Near-miss room candidates
-- Match confidence score
+- Hotel confidence score
 
 ---
 
-## Matching Approach
+# Matching Strategy
 
-### Hotel Matching
+## Hotel Matching
 
-Hotels are matched using:
+Candidate generation reduces unnecessary comparisons using geographic blocking.
 
-- Candidate generation
-- Fuzzy name matching
+Each candidate pair is scored using multiple signals:
+
+- Hotel name similarity
+- Geographic distance
 - Address similarity
-- Geographic proximity
-- Confidence scoring
+- Star rating comparison
 
-### Room Matching
+Only matches with confidence ≥ 55 are accepted.
 
-Rooms are matched using RapidFuzz token sort similarity. Each room match includes a confidence score, and uncertain matches are returned as near-miss candidates instead of being forced.
-
----
-
-## Output
-
-The generated canonical hotel dataset is stored in:
-
-```
-output/canonical_hotels.json
-```
+Hotels without a valid match are retained as single-source canonical hotels.
 
 ---
 
-## API Spend
+## Room Matching
+
+Rooms are matched using RapidFuzz token similarity.
+
+Normalized attributes include:
+
+- Bed type
+- Occupancy
+- Meal plan
+- View
+
+Low-confidence room matches are returned as near-miss candidates instead of being forced.
+
+---
+
+# API Spend
 
 ```
 $0
 ```
+
+No paid APIs or LLM services were used.
+
+---
+
+# Notes
+
+The repository includes:
+
+- Source code
+- Docker configuration
+- Canonical output
+- Technical write-up
+
+The project is fully reproducible from the provided source code and dataset.
