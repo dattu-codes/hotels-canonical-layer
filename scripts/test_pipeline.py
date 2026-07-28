@@ -33,7 +33,7 @@ for _, hotel_a in supplier_a.iterrows():
 
         hotel_b = candidate["hotel"]
 
-        # Skip if this Supplier B hotel is already matched
+        # Skip already matched Supplier B hotels
         if hotel_b["id"] in used_b_ids:
             continue
 
@@ -65,7 +65,44 @@ for _, hotel_a in supplier_a.iterrows():
 
     canonical_hotels.append(canonical)
 
+    # Mark Supplier B hotel as used
     used_b_ids.add(best_candidate["hotel"]["id"])
+
+
+# ------------------------------------------
+# Add unmatched hotels (ONLY ONCE)
+# ------------------------------------------
+
+used_a_ids = set()
+
+for canonical in canonical_hotels:
+    if canonical["supplier_a_id"] is not None:
+        used_a_ids.add(canonical["supplier_a_id"])
+
+# Add unmatched Supplier A hotels
+for _, hotel_a in supplier_a.iterrows():
+
+    if hotel_a["id"] not in used_a_ids:
+
+        canonical_hotels.append(
+            merger.merge_single_source(
+                hotel_a,
+                "A"
+            )
+        )
+
+# Add unmatched Supplier B hotels
+for _, hotel_b in supplier_b.iterrows():
+
+    if hotel_b["id"] not in used_b_ids:
+
+        canonical_hotels.append(
+            merger.merge_single_source(
+                hotel_b,
+                "B"
+            )
+        )
+
 
 print("\nProcessing Complete!")
 print(f"Total Canonical Hotels: {len(canonical_hotels)}")

@@ -27,3 +27,20 @@ class CanonicalMerger:
         }
 
         return canonical
+    def merge_single_source(self, hotel, source):
+
+        return {
+            "canonical_id": f"CAN-{source}-{hotel['id']}",
+            "name": hotel["name"],
+            "address": hotel["address"],
+
+            "latitude": hotel["lat"],
+            "longitude": hotel["lon"],
+
+            "stars": hotel["stars"],
+
+            "supplier_a_id": hotel["id"] if source == "A" else None,
+            "supplier_b_id": hotel["id"] if source == "B" else None,
+
+            "confidence": 100.0
+        }
