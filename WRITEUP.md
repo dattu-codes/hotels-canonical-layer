@@ -2,48 +2,95 @@
 
 ## Approach
 
-The objective of this project was to merge duplicate hotel records from two independent suppliers into a single canonical hotel layer while preserving source provenance and assigning a confidence score to every match.
+The objective of this project was to merge duplicate hotel records from two independent suppliers into a single canonical hotel layer while preserving provenance and assigning confidence scores at both the hotel and room level.
 
-A brute-force comparison between every Supplier A hotel and every Supplier B hotel would require approximately 13 million comparisons, making it computationally expensive and difficult to scale. To reduce the search space, I first generated candidate matches using geographic proximity and lightweight filtering before applying fuzzy matching.
+A naïve approach would compare every hotel from Supplier A against every hotel from Supplier B (approximately 13 million comparisons). This is computationally expensive and unnecessary. Instead, the pipeline first performs candidate generation using geographic blocking within a configurable search radius to significantly reduce the number of hotel pairs that require detailed comparison.
 
-For each candidate pair, I compared multiple signals including:
+Each candidate pair is then evaluated using multiple matching signals:
 
 - Hotel name similarity
-- Address similarity
 - Geographic distance (latitude/longitude)
 - Star rating similarity
 
-These signals were combined into a confidence score. The highest-confidence candidate above the matching threshold was selected as the canonical hotel while preserving references to both supplier records.
+These signals are combined into a confidence score. The highest-confidence candidate above the acceptance threshold is merged into a canonical hotel record while preserving references to the original supplier records.
 
-Hotels that could not be confidently matched were retained as single-source canonical hotels instead of being discarded, ensuring that every supplier hotel remained available in the canonical dataset.
+Hotels that cannot be confidently matched are retained as single-source canonical hotels instead of being discarded, ensuring complete coverage of both supplier datasets.
 
 ---
 
-# Room Matching
+# Room Canonicalization
 
-Room matching was performed only for hotels that had already been matched.
+Room matching is performed only for hotels that have already been matched.
 
-RapidFuzz token sort similarity was used to compare room names such as:
+RapidFuzz token sort similarity is used to compare room names while handling variations such as:
 
 - Deluxe Twin Room
 - Twin Deluxe Room
 
-The room parser also normalizes attributes such as:
+To improve room consistency, room information is normalized into structured attributes including:
 
-- Bed type
+- Bed Type
 - Occupancy
-- Meal plan
+- Meal Plan
 - View
 
-Each room pair receives a confidence score.
+For every matched hotel pair, the pipeline generates a persisted room-level canonical artifact (`canonical_rooms.json`).
 
-Lower-confidence room pairs are returned as near-miss candidates instead of forcing incorrect matches.
+Each canonical room record contains:
+
+- Canonical Room ID
+- Canonical Hotel ID
+- Supplier A Room ID
+- Supplier B Room ID
+- Normalized room attributes
+- Room-level confidence score
+- Match status
+
+Room match status is classified as:
+
+- matched
+- near_miss
+- unmatched_a
+- unmatched_b
+
+Low-confidence room pairs are preserved as near-miss candidates instead of forcing incorrect matches, while rooms existing in only one supplier remain unmatched.
+
+---
+
+# Canonical Artifacts
+
+The pipeline produces two persisted canonical outputs.
+
+## Hotel Artifact
+
+`output/canonical_hotels.json`
+
+Contains:
+
+- Canonical hotel information
+- Supplier provenance
+- Hotel confidence score
+
+## Room Artifact
+
+`output/canonical_rooms.json`
+
+Contains:
+
+- Canonical room information
+- Canonical hotel reference
+- Supplier room provenance
+- Normalized room attributes
+- Room confidence score
+- Match status
+
+Persisting these artifacts separates the matching pipeline from the serving layer and avoids recomputing room matches during every API request.
 
 ---
 
 # API Design
 
-The project exposes the canonical layer through a FastAPI REST API.
+The canonical layer is exposed through a FastAPI REST API.
 
 Endpoints:
 
@@ -57,7 +104,11 @@ The hotel details endpoint returns:
 - Supplier B record
 - Matched rooms
 - Near-miss room candidates
+- Unmatched Supplier A rooms
+- Unmatched Supplier B rooms
 - Hotel confidence score
+
+The API reads the persisted canonical artifacts (`canonical_hotels.json` and `canonical_rooms.json`) rather than performing room alignment during every request, resulting in a cleaner separation between data generation and data serving.
 
 Swagger/OpenAPI documentation is automatically available through FastAPI.
 
@@ -65,18 +116,20 @@ Swagger/OpenAPI documentation is automatically available through FastAPI.
 
 # Validation
 
-To validate the matching pipeline, I manually inspected representative hotel matches and verified that hotel names, addresses, coordinates, and confidence scores were consistent.
+The matching pipeline was validated by manually inspecting representative hotel matches and verifying that hotel names, geographic proximity, star ratings, and confidence scores were consistent with the expected canonical mappings.
 
-I also verified the API using Swagger UI by testing:
+The API was validated using Swagger UI by testing:
 
 - Hotel search
 - Canonical hotel retrieval
 - Matched hotels
 - Supplier A-only hotels
 - Supplier B-only hotels
+- Persisted room canonicalization
 - Room matching output
+- Near-miss and unmatched room responses
 
-Finally, I confirmed that every hotel from both supplier datasets was represented in the final canonical output without duplicate supplier mappings.
+Finally, I verified that every supplier hotel appears exactly once in the final canonical hotel output and that room-level canonical records are generated only for matched hotel pairs while preserving supplier provenance.
 
 ---
 
@@ -84,7 +137,9 @@ Finally, I confirmed that every hotel from both supplier datasets was represente
 
 I considered comparing every Supplier A hotel against every Supplier B hotel directly. However, this would require approximately 13 million comparisons and would not scale efficiently.
 
-I also considered using LLMs to compare every hotel pair. Although this could improve some ambiguous matches, it would introduce significant API cost and latency. Instead, I used candidate generation followed by deterministic fuzzy matching, resulting in a fully reproducible solution with zero external API cost.
+I also considered using LLMs to compare every hotel pair. Although this could improve some ambiguous matches, it would significantly increase both API cost and processing latency.
+
+Instead, I used deterministic candidate generation followed by fuzzy matching. This approach is reproducible, explainable, inexpensive, and well suited to the assignment dataset.
 
 ---
 
@@ -94,20 +149,22 @@ Total external API spend:
 
 **$0**
 
-The entire pipeline relies on local processing using Python, Pandas, and RapidFuzz without requiring paid APIs or external LLM services.
+The complete pipeline relies on local processing using Python, Pandas, and RapidFuzz without requiring paid APIs or external LLM services.
 
 ---
 
 # Scaling to 200,000 Hotels
 
-The current implementation is designed for the assignment dataset and performs well at this scale. For significantly larger datasets involving hundreds of thousands of hotels and multiple suppliers, I would improve the architecture by:
+The current implementation is designed for the assignment dataset and performs well at this scale.
 
-- Using stronger blocking/indexing strategies for candidate generation.
-- Building approximate nearest-neighbor indexes for embedding-based matching.
-- Storing canonical data in a database instead of JSON files.
-- Processing matching in parallel batches.
-- Caching intermediate matching results.
-- Supporting incremental updates for new supplier feeds instead of rebuilding the entire canonical layer.
+For significantly larger datasets involving hundreds of thousands of hotels and multiple suppliers, I would improve the architecture by:
+
+- Stronger blocking and indexing strategies
+- Approximate nearest-neighbor search for candidate generation
+- Database-backed canonical storage instead of JSON artifacts
+- Parallel matching pipelines
+- Incremental processing of supplier updates
+- Caching intermediate matching results
 
 These improvements would reduce computation time while maintaining matching quality.
 
@@ -119,9 +176,12 @@ Within the assignment time constraints, I prioritized:
 
 - Accurate hotel matching
 - Explainable confidence scores
-- Reliable room matching
-- A clean REST API
+- Reliable room canonicalization
+- Persisted canonical artifacts
+- Clean REST API
 - Dockerized deployment
 - Reproducibility
 
-I intentionally avoided expensive LLM-based comparisons for every hotel pair because they would increase both API cost and latency without being necessary for this dataset. The chosen approach provides a scalable, deterministic, and cost-effective solution while remaining easy to understand and reproduce.
+I intentionally avoided expensive LLM-based comparisons across the full dataset because they would increase both cost and latency without being necessary for this assignment.
+
+The resulting solution is deterministic, reproducible, cost-effective, and separates the matching pipeline from the API layer through persisted canonical hotel and room artifacts.
