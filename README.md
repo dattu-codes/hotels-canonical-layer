@@ -2,7 +2,6 @@
 
 A FastAPI-based canonical hotel layer that merges duplicate hotel records from two independent suppliers into a unified dataset with confidence scoring, room canonicalization, and source provenance.
 
-Built as part of the Away AI Engineering Intern Take-Home Assignment.
 
 ---
 
